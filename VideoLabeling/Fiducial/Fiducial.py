@@ -38,16 +38,25 @@ class FiducialWidget(ScriptedLoadableModuleWidget):
   """Uses ScriptedLoadableModuleWidget base class, available at:
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
+  points = numpy.array([1,2,3])
+  pointXval = 0
+  pointYval = 0
+  pointZval = 0
+  pointIncrement = 5
+
 
   def setup(self):
     ScriptedLoadableModuleWidget.setup(self)
-
+    self.line = slicer.vtkMRMLMarkupsFiducialNode()
+    self.line.SetName('line')
 
     # Instantiate and connect widgets ...
 
     #
     # Parameters Area
     #
+
+
     parametersCollapsibleButton = ctk.ctkCollapsibleButton()
     parametersCollapsibleButton.text = "Parameters"
     self.layout.addWidget(parametersCollapsibleButton)
@@ -70,11 +79,14 @@ class FiducialWidget(ScriptedLoadableModuleWidget):
     self.AddFiducialButton = AddFiducialButton
 
   def onAddFiducialButtonClicked(self):
-    points = numpy.array([1,2,3])
-    line = slicer.vtkMRMLMarkupsFiducialNode()
-    line.SetName('line')
-    line.AddFiducialFromArray(points)
-    slicer.mrmlScene.AddNode(line)
+    self.pointXval = self.pointXval + self.pointIncrement
+    self.pointYval = self.pointYval + self.pointIncrement
+    self.pointZval = self.pointZval + self.pointIncrement
+    points = numpy.array([self.pointXval, self.pointYval, self.pointZval])
+    #line = slicer.vtkMRMLMarkupsFiducialNode()
+    #line.SetName('line')
+    self.line.AddFiducialFromArray(points)
+    slicer.mrmlScene.AddNode(self.line)
     
 
 
