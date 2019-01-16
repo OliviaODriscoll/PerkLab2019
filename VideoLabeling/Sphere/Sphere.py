@@ -6,17 +6,17 @@ import logging
 import numpy
 
 #
-# Fiducial
+# Sphere
 #
 
-class Fiducial(ScriptedLoadableModule):
+class Sphere(ScriptedLoadableModule):
   """Uses ScriptedLoadableModule base class, available at:
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
 
   def __init__(self, parent):
     ScriptedLoadableModule.__init__(self, parent)
-    self.parent.title = "Fiducial" # TODO make this more human readable by adding spaces
+    self.parent.title = "Sphere" # TODO make this more human readable by adding spaces
     self.parent.categories = ["Examples"]
     self.parent.dependencies = []
     self.parent.contributors = ["John Doe (AnyWare Corp.)"] # replace with "Firstname Lastname (Organization)"
@@ -31,25 +31,16 @@ and Steve Pieper, Isomics, Inc. and was partially funded by NIH grant 3P41RR0132
 """ # replace with organization, grant and thanks.
 
 #
-# FiducialWidget
+# SphereWidget
 #
 
-class FiducialWidget(ScriptedLoadableModuleWidget):
+class SphereWidget(ScriptedLoadableModuleWidget):
   """Uses ScriptedLoadableModuleWidget base class, available at:
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
-  points = numpy.array([1,2,3])
-  pointXval = 0
-  pointYval = 0
-  pointZval = 0
-  pointIncrement = 5
-
 
   def setup(self):
     ScriptedLoadableModuleWidget.setup(self)
-    self.line = slicer.vtkMRMLMarkupsFiducialNode()
-    self.line.SetName('line')
-
 
     parametersCollapsibleButton = ctk.ctkCollapsibleButton()
     parametersCollapsibleButton.text = "Parameters"
@@ -58,39 +49,43 @@ class FiducialWidget(ScriptedLoadableModuleWidget):
     # Layout within the dummy collapsible button
     parametersFormLayout = qt.QFormLayout(parametersCollapsibleButton)
 
-    
-    # Fiducial button
-    AddFiducialButton = qt.QPushButton("Add Fiducial")
-    AddFiducialButton.toolTip = "Add a Fiducial to the scene."
-    parametersFormLayout.addWidget(AddFiducialButton)
-    AddFiducialButton.connect('clicked(bool)', self.onAddFiducialButtonClicked)
+    # Sphere button
+    AddSphereButton = qt.QPushButton("Add Sphere")
+    AddSphereButton.toolTip = "Add a Sphere to the scene."
+    parametersFormLayout.addWidget(AddSphereButton)
+    AddSphereButton.connect('clicked(bool)', self.onAddSphereButtonClicked)
 
 
     # Add vertical spacer
     self.layout.addStretch(1)
 
+    
     #Set local var as instance attribute
-    self.AddFiducialButton = AddFiducialButton
+    self.AddSphereButton = AddSphereButton
 
-  def onAddFiducialButtonClicked(self):
-    self.pointXval = self.pointXval + self.pointIncrement
-    self.pointYval = self.pointYval + self.pointIncrement
-    self.pointZval = self.pointZval + self.pointIncrement
-    points = numpy.array([self.pointXval, self.pointYval, self.pointZval])
-    self.line.AddFiducialFromArray(points)
-    slicer.mrmlScene.AddNode(self.line)
+
+  def onAddSphereButtonClicked(self):
+  # Create a model containing a sphere
+    sphere = vtk.vtkSphereSource()
+    sphere.SetRadius(30.0)
+    sphere.Update()
+    modelNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLModelNode')
+    modelNode.SetAndObservePolyData(sphere.GetOutput())
+    modelNode.CreateDefaultDisplayNodes()
+    a = arrayFromModelPoints(modelNode)
+    # change Y scaling
+    a[:,2] = a[:,2] * 2.5
+    arrayFromModelPointsModified(modelNode)
     
 
   def cleanup(self):
     pass
 
-
-
 #
-# FiducialLogic
+# SphereLogic
 #
 
-class FiducialLogic(ScriptedLoadableModuleLogic):
+class SphereLogic(ScriptedLoadableModuleLogic):
   """This class should implement all the actual
   computation done by your module.  The interface
   should be such that other python code can import
@@ -113,8 +108,81 @@ class FiducialLogic(ScriptedLoadableModuleLogic):
       return False
     return True
 
+  def isValidInputOutputData(self, inputVolumeNode, outputVolumeNode):
+    """Validates if the output is not the same as input
+    """
+    if not inputVolumeNode:
+      logging.debug('isValidInputOutputData failed: no input volume node defined')
+      return False
+    if not outputVolumeNode:
+      logging.debug('isValidInputOutputData failed: no output volume node defined')
+      return False
+    if inputVolumeNode.GetID()==outputVolumeNode.GetID():
+      logging.debug('isValidInputOutputData failed: input and output volume is the same. Create a new volume for output to avoid this error.')
+      return False
+    return True
 
-class FiducialTest(ScriptedLoadableModuleTest):
+  def takeScreenshot(self,name,description,type=-1):
+    # show the message even if not taking a screen shot
+    slicer.util.delayDisplay('Take screenshot: '+description+'.\nResult is available in the Annotations module.', 3000)
+
+    lm = slicer.app.layoutManager()
+    # switch on the type to get the requested window
+    widget = 0
+    if type == slicer.qMRMLScreenShotDialog.FullLayout:
+      # full layout
+      widget = lm.viewport()
+    elif type == slicer.qMRMLScreenShotDialog.ThreeD:
+      # just the 3D window
+      widget = lm.threeDWidget(0).threeDView()
+    elif type == slicer.qMRMLScreenShotDialog.Red:
+      # red slice window
+      widget = lm.sliceWidget("Red")
+    elif type == slicer.qMRMLScreenShotDialog.Yellow:
+      # yellow slice window
+      widget = lm.sliceWidget("Yellow")
+    elif type == slicer.qMRMLScreenShotDialog.Green:
+      # green slice window
+      widget = lm.sliceWidget("Green")
+    else:
+      # default to using the full window
+      widget = slicer.util.mainWindow()
+      # reset the type so that the node is set correctly
+      type = slicer.qMRMLScreenShotDialog.FullLayout
+
+    # grab and convert to vtk image data
+    qimage = ctk.ctkWidgetsUtils.grabWidget(widget)
+    imageData = vtk.vtkImageData()
+    slicer.qMRMLUtils().qImageToVtkImageData(qimage,imageData)
+
+    annotationLogic = slicer.modules.annotations.logic()
+    annotationLogic.CreateSnapShot(name, description, type, 1, imageData)
+
+  def run(self, inputVolume, outputVolume, imageThreshold, enableScreenshots=0):
+    """
+    Run the actual algorithm
+    """
+
+    if not self.isValidInputOutputData(inputVolume, outputVolume):
+      slicer.util.errorDisplay('Input volume is the same as output volume. Choose a different output volume.')
+      return False
+
+    logging.info('Processing started')
+
+    # Compute the thresholded output volume using the Threshold Scalar Volume CLI module
+    cliParams = {'InputVolume': inputVolume.GetID(), 'OutputVolume': outputVolume.GetID(), 'ThresholdValue' : imageThreshold, 'ThresholdType' : 'Above'}
+    cliNode = slicer.cli.run(slicer.modules.thresholdscalarvolume, None, cliParams, wait_for_completion=True)
+
+    # Capture screenshot
+    if enableScreenshots:
+      self.takeScreenshot('SphereTest-Start','MyScreenshot',-1)
+
+    logging.info('Processing completed')
+
+    return True
+
+
+class SphereTest(ScriptedLoadableModuleTest):
   """
   This is the test case for your scripted module.
   Uses ScriptedLoadableModuleTest base class, available at:
@@ -130,9 +198,9 @@ class FiducialTest(ScriptedLoadableModuleTest):
     """Run as few or as many tests as needed here.
     """
     self.setUp()
-    self.test_Fiducial1()
+    self.test_Sphere1()
 
-  def test_Fiducial1(self):
+  def test_Sphere1(self):
     """ Ideally you should have several levels of tests.  At the lowest level
     tests should exercise the functionality of the logic with different inputs
     (both valid and invalid).  At higher levels your tests should emulate the
@@ -164,11 +232,6 @@ class FiducialTest(ScriptedLoadableModuleTest):
     self.delayDisplay('Finished with download and loading')
 
     volumeNode = slicer.util.getNode(pattern="FA")
-    logic = FiducialLogic()
+    logic = SphereLogic()
     self.assertIsNotNone( logic.hasImageData(volumeNode) )
     self.delayDisplay('Test passed!')
-
-
-
-
-
