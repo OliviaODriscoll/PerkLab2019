@@ -4,6 +4,7 @@ import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
 import logging
 import numpy
+import math
 
 #
 # Sphere
@@ -42,6 +43,19 @@ class SphereWidget(ScriptedLoadableModuleWidget):
   def setup(self):
     ScriptedLoadableModuleWidget.setup(self)
 
+    fidList = slicer.util.getNode('line')
+    numFids = fidList.GetNumberOfFiducials()
+    for i in range(numFids):
+      ras = [0,0,0]
+      fidList.GetNthFiducialPosition(i,ras)
+   # the world position is the RAS position with any transform matrices applied
+      world = [0,0,0,0]
+      fidList.GetNthFiducialWorldCoordinates(0,world)
+   #  print(i,": RAS =",ras,", world =",world)
+
+    #self.line = slicer.vtkMRMLMarkupsFiducialNode()
+    #numFiducials = slicer.vtkMRMLMarkupsFiducialNode.GetNumberOfFiducials()
+
     parametersCollapsibleButton = ctk.ctkCollapsibleButton()
     parametersCollapsibleButton.text = "Parameters"
     self.layout.addWidget(parametersCollapsibleButton)
@@ -65,17 +79,43 @@ class SphereWidget(ScriptedLoadableModuleWidget):
 
 
   def onAddSphereButtonClicked(self):
-  # Create a model containing a sphere
+    bounds = [0]*6
+    fidList = slicer.util.getNode('line')
+    fidList.GetBounds(bounds)
+   
+
+    # Get the bounding box of the data
+    #self.line.GetBounds(bounds)
+    print bounds[0], bounds[1], bounds[2], bounds[3], bounds[4], bounds[5]
+
+    # Find the center of the sphere by averaging the min and max x, y, and z values
+    sphereX = (bounds[0]+bounds[3])/2
+    sphereY = (bounds[1]+bounds[4])/2
+    sphereZ = (bounds[2]+bounds[5])/2
+    sphereCenter = numpy.array([sphereX, sphereY, sphereZ])
+    print sphereX, sphereY, sphereZ
+
+    # Get the sphere diameter
+
+    sphereDiameter = math.sqrt(sphereX**2 + sphereY**2 + sphereZ**2)
+    if sphereDiameter > 0:
+      sphereRadius = sphereDiameter/2
+    else:
+      sphereRadius = 0
+
+    # Create a model containing a sphere
     sphere = vtk.vtkSphereSource()
-    sphere.SetRadius(30.0)
+    sphere.SetRadius(sphereRadius)
+    sphere.SetCenter(sphereX, sphereY, sphereZ)
+    #sphere.Set
     sphere.Update()
     modelNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLModelNode')
     modelNode.SetAndObservePolyData(sphere.GetOutput())
     modelNode.CreateDefaultDisplayNodes()
-    a = arrayFromModelPoints(modelNode)
+    #a = arrayFromModelPoints(modelNode)
     # change Y scaling
-    a[:,2] = a[:,2] * 2.5
-    arrayFromModelPointsModified(modelNode)
+    #a[:,2] = a[:,2] * 2.5
+    #arrayFromModelPointsModified(modelNode)
     
 
   def cleanup(self):
